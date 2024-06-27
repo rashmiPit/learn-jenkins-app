@@ -1,30 +1,67 @@
 pipeline{
     agent any
 
+
+    parameters{
+        string(name: 'DOCKER_IMAGE_NODE', defaultValue: 'node:20.13.1-alpine', description: 'Enter the node version')
+    }
+
+    
+    environment{
+        DOCKER_IMAGE_NODE : "${params.DOCKER_IMAGE_NODE}"
+    }
+
+    options { 
+        // Same node is used for the entire pipeline
+        reuseNode true
+    }
+
+
     stages{
-        stage('Build'){
-            agent {
-                docker {
-                    image 'node:20.13.1-alpine'
-                    reuseNode true
+
+        stage('Prepare'){
+            steps{
+                script{
+                    docker.image(params.DOCKER_IMAGE_NODE).pull()
                 }
             }
+        }
 
+        stage('Build'){
             steps{
-                sh '''
-                    ls -la
-                    node --version
-                    npm --version
-                    npm ci
-                    npm install
-                    npm run build
-                    ls -la
-                '''
+                script{
+                    docker.image(params.DOCKER_IMAGE_NODE).inside('-u 0'){
+                        commonSteps()
+                        sh 'npm run build'
+                        sh 'ls -la'
+                    }
+                }
             }
         }
 
         stage('Test Stage'){
-            sh 'echo "npm test" '
+            steps{
+                script{
+                    docker.image(params.DOCKER_IMAGE_NODE).inside('-u 0')
+                     // This is used to check the index.html file is avaible it the build directory or not
+                    sh '''
+                        test -f build/index.html
+                        npm test
+                    ''' 
+                }
+                
+            }
         } 
     }
+}
+
+def commonSteps(){
+    sh '''
+        ls -la
+        node --version
+        npm --version
+
+        npm ci
+        npm install
+    '''
 }
