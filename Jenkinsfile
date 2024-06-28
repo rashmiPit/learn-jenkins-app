@@ -1,36 +1,33 @@
-pipeline{
+pipeline {
     agent any
 
-
-    parameters{
+    parameters {
         string(name: 'DOCKER_IMAGE_NODE', defaultValue: 'node:20.13.1-alpine', description: 'Enter the node version')
     }
 
-    
-    environment{
-        DOCKER_IMAGE_NODE : "${params.DOCKER_IMAGE_NODE}"
+    environment {
+        DOCKER_IMAGE_NODE = "${params.DOCKER_IMAGE_NODE}"
     }
 
-    options { 
-        // Same node is used for the entire pipeline
-        reuseNode true
-    }
-
-
-    stages{
-
-        stage('Prepare'){
-            steps{
-                script{
-                    docker.image(params.DOCKER_IMAGE_NODE).pull()
+    stages {
+        stage('Prepare') {
+            steps {
+                script {
+                    docker.image("${params.DOCKER_IMAGE_NODE}").pull()
                 }
             }
         }
 
-        stage('Build'){
-            steps{
-                script{
-                    docker.image(params.DOCKER_IMAGE_NODE).inside('-u 0'){
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    docker.image("${params.DOCKER_IMAGE_NODE}").inside('-u 0') {
                         commonSteps()
                         sh 'npm run build'
                         sh 'ls -la'
@@ -39,29 +36,28 @@ pipeline{
             }
         }
 
-        stage('Test Stage'){
-            steps{
-                script{
-                    docker.image(params.DOCKER_IMAGE_NODE).inside('-u 0')
-                     // This is used to check the index.html file is avaible it the build directory or not
-                    sh '''
-                        test -f build/index.html
-                        npm test
-                    ''' 
+        stage('Test') {
+            steps {
+                script {
+                    docker.image("${params.DOCKER_IMAGE_NODE}").inside('-u 0') {
+                        sh '''
+                            test -f build/index.html
+                            npm test
+                        '''
+                    }
                 }
-                
             }
-        } 
+        }
     }
 
-    post{
+    post {
         always {
             junit 'test-results/junit.xml'
         }
     }
 }
 
-def commonSteps(){
+def commonSteps() {
     sh '''
         ls -la
         node --version
